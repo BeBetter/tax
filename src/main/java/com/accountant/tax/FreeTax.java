@@ -23,7 +23,7 @@ public class FreeTax {
 
     //主程序入口
     public static void main(String[] args) throws ParseException {
-        String filepath = "D:\\git_workspace\\tax\\src\\data\\free_tax.xls";
+        String filepath = "D:\\git_workspace\\tax\\src\\data\\2018_new.xls";
         Excel excel = new Excel();
         Workbook wb = excel.read(filepath);
 
@@ -51,7 +51,7 @@ public class FreeTax {
         titles.add("免税股数");
         ExcelInfo info = new ExcelInfo("免税计算", titles, resList);
 
-        excel.write(info, "D:\\git_workspace\\tax\\src\\data\\free_tax_result_new.xls");
+        excel.write(info, "D:\\git_workspace\\tax\\src\\data\\free_tax_result_new_1.xls");
     }
 
     private static void preCompute(List<List<Object>> res,
@@ -69,8 +69,11 @@ public class FreeTax {
                 String mapName = ((String) trans.get(2)).trim();
                 return db.equals(mapDb) && code.equals(mapCode) && name.equals(mapName);
             }).sorted(Comparator.comparing(key -> (Date) key.get(3))).collect(Collectors.toList());
-            List<Object> result = computeFreeTax(list, filterList);
-            res.add(result);
+
+            if (db.equals("阳光团险") && name.equals("长城汽车")) {
+                List<Object> result = computeFreeTax(list, filterList);
+                res.add(result);
+            }
         }
     }
 
@@ -78,7 +81,12 @@ public class FreeTax {
     private static List<Object> computeFreeTax(List<Object> div,
                                                List<List<Object>> amounts) throws ParseException {
         //分红日期
-        Date date = (Date) div.get(3);
+        Date date = null;
+        try {
+            date = (Date) div.get(3);
+        } catch (ClassCastException ex) {
+            System.out.println("div: " + div);
+        }
         //分红之前的交易数据
         List<List<Object>> beforeAmounts = new ArrayList<>();
         //分红之后的交易数据
@@ -86,8 +94,13 @@ public class FreeTax {
 
         for (List<Object> temp : amounts) {
             Date tempDate = (Date) temp.get(3);
-            if (tempDate.before(date) || tempDate.equals(date)) {
+            if (tempDate.before(date)) {
                 beforeAmounts(beforeAmounts, temp);
+            } else if (tempDate.equals(date)) {
+                String category = (String) temp.get(4);
+                if (category.equals("卖出")) {
+                    beforeAmounts(beforeAmounts, temp);
+                }
             } else {
                 afterAmounts(afterAmounts, temp);
             }
@@ -104,6 +117,7 @@ public class FreeTax {
         for (List<Object> temp : afterAmounts) {
             profitTax(beforeAmounts, temp, div);
         }
+
         //分红之前剩下截止时间处理
         Calendar cal = Calendar.getInstance();
         Date lastDay = (new SimpleDateFormat("yyyyMMdd")).parse("20181231");
@@ -158,8 +172,8 @@ public class FreeTax {
             }
         }
 
-        if (div.size() == 6) {
-            div.set(5, (double) div.get(5) + profit);
+        if (div.size() == 7) {
+            div.set(6, (double) div.get(6) + profit);
         } else {
             div.add(profit);
         }
